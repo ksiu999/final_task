@@ -740,5 +740,5 @@ POST /api/v1/payments
 
 ![Скриншоты Swagger](../img/sw_top-1.png)
 ![](../img/sw_top-2.png)
-
----
+![](../img/sw_top-3.png)
+![](../img/sw_top-4.png)---
