@@ -1,0 +1,26 @@
+# Чувствительные данные
+.env
+.env.local
+*.pem
+*.key
+
+# Зависимости и кэш
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (если есть локальные данные)
+postgres_data/
+pgadmin_data/
+redis_data/
