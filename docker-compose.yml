@@ -1,0 +1,95 @@
+services:
+  # ============================================
+  # PostgreSQL — основная база данных
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: silafit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: silafit
+      POSTGRES_USER: silafit_admin
+      POSTGRES_PASSWORD: silafit_secure_pass_2026
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - silafit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U silafit_admin -d silafit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # pgAdmin — веб-интерфейс для работы с БД
+  # ============================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: silafit-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@silafit.ru
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - silafit-network
+
+  # ============================================
+  # Redis — брокер сообщений для очереди уведомлений
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: silafit-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - silafit-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Swagger UI — визуализация OpenAPI спецификации
+  # ============================================
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    container_name: silafit-swagger
+    restart: unless-stopped
+    environment:
+      SWAGGER_JSON: /swagger/openapi.yaml
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./openapi:/swagger:ro
+    networks:
+      - silafit-network
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  silafit-network:
+    driver: bridge

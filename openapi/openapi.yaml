@@ -1,0 +1,1166 @@
+openapi: 3.0.3
+info:
+  title: Фитнес-клуб «Сила» — API
+  description: |
+    REST API для доработки информационной системы сети фитнес-клубов «Сила».
+
+    **Основные модули:**
+    - Контроль доступа по RFID-картам (вход/выход)
+    - Бронирование групповых занятий и персональных тренировок
+    - Лист ожидания с автоматическим уведомлением
+    - Управление тренерами и расписанием
+
+    **Версия:** 1.0.0  
+    **Дата:** 2026-09-11  
+    **Автор:** Системный аналитик (ИАР САС-101)
+  version: 1.0.0
+  contact:
+    name: Служба поддержки «Сила»
+    email: support@silafit.ru
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Локальный сервер разработки
+  - url: https://api.silafit.ru/api/v1
+    description: Production сервер
+
+tags:
+  - name: Clients
+    description: Управление клиентами
+  - name: Memberships
+    description: Управление абонементами
+  - name: AccessCards
+    description: Электронные карты доступа (RFID)
+  - name: VisitLogs
+    description: Журнал посещений (вход/выход)
+  - name: Classes
+    description: Групповые занятия и единоборства
+  - name: Bookings
+    description: Бронирования на занятия
+  - name: Waitlist
+    description: Лист ожидания
+  - name: Trainers
+    description: Управление тренерами
+  - name: PersonalTrainings
+    description: Персональные тренировки
+  - name: Payments
+    description: Платежи и транзакции
+  - name: Turnstiles
+    description: Интеграция с турникетным контроллером
+
+paths:
+  # ============================================
+  # CLIENTS (Клиенты)
+  # ============================================
+  /clients:
+    get:
+      tags: [Clients]
+      summary: Получить список клиентов
+      operationId: listClients
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Список клиентов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Client"
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+    post:
+      tags: [Clients]
+      summary: Создать нового клиента
+      operationId: createClient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientCreate"
+      responses:
+        "201":
+          description: Клиент создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /clients/{id}:
+    get:
+      tags: [Clients]
+      summary: Получить клиента по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные клиента
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+    put:
+      tags: [Clients]
+      summary: Обновить данные клиента
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientUpdate"
+      responses:
+        "200":
+          description: Клиент обновлён
+    delete:
+      tags: [Clients]
+      summary: Удалить клиента
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Клиент удалён
+
+  # ============================================
+  # MEMBERSHIPS (Абонементы)
+  # ============================================
+  /memberships:
+    get:
+      tags: [Memberships]
+      summary: Получить список абонементов
+      parameters:
+        - name: client_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, expired, frozen] }
+      responses:
+        "200":
+          description: Список абонементов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Membership"
+    post:
+      tags: [Memberships]
+      summary: Создать абонемент
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MembershipCreate"
+      responses:
+        "201":
+          description: Абонемент создан
+
+  /memberships/{id}:
+    get:
+      tags: [Memberships]
+      summary: Получить абонемент по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные абонемента
+    put:
+      tags: [Memberships]
+      summary: Обновить абонемент (заморозка, продление)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MembershipUpdate"
+      responses:
+        "200":
+          description: Абонемент обновлён
+    delete:
+      tags: [Memberships]
+      summary: Удалить абонемент
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Абонемент удалён
+
+  # ============================================
+  # ACCESS CARDS (Электронные карты)
+  # ============================================
+  /access-cards:
+    get:
+      tags: [AccessCards]
+      summary: Получить список карт доступа
+      parameters:
+        - name: client_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, blocked, lost] }
+      responses:
+        "200":
+          description: Список карт
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessCard"
+    post:
+      tags: [AccessCards]
+      summary: Выпустить новую карту
+      description: Выпускается при покупке абонемента или перевыпуске (500 руб.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessCardCreate"
+      responses:
+        "201":
+          description: Карта выпущена
+
+  /access-cards/{id}:
+    get:
+      tags: [AccessCards]
+      summary: Получить карту по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные карты
+    put:
+      tags: [AccessCards]
+      summary: Обновить статус карты (блокировка/разблокировка)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessCardUpdate"
+      responses:
+        "200":
+          description: Карта обновлена
+    delete:
+      tags: [AccessCards]
+      summary: Удалить карту
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Карта удалена
+
+  # ============================================
+  # VISIT LOGS (Журнал посещений)
+  # ============================================
+  /visit-logs:
+    get:
+      tags: [VisitLogs]
+      summary: Получить журнал посещений
+      parameters:
+        - name: client_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from_date
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to_date
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Список посещений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VisitLog"
+    post:
+      tags: [VisitLogs]
+      summary: Зафиксировать вход/выход
+      description: Вызывается при прикладывании карты к турникету
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitLogCreate"
+      responses:
+        "201":
+          description: Посещение зафиксировано
+
+  /visit-logs/{id}:
+    get:
+      tags: [VisitLogs]
+      summary: Получить запись журнала по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные записи
+    put:
+      tags: [VisitLogs]
+      summary: Обновить запись (проставить exit_time)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Запись обновлена
+    delete:
+      tags: [VisitLogs]
+      summary: Удалить запись (только для администратора)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Запись удалена
+
+  # ============================================
+  # CLASSES (Занятия)
+  # ============================================
+  /classes:
+    get:
+      tags: [Classes]
+      summary: Получить расписание занятий
+      parameters:
+        - name: class_type
+          in: query
+          schema: { type: string, enum: [group, martial_arts, personal] }
+        - name: trainer_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from_date
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Список занятий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Class"
+    post:
+      tags: [Classes]
+      summary: Создать новое занятие
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassCreate"
+      responses:
+        "201":
+          description: Занятие создано
+
+  /classes/{id}:
+    get:
+      tags: [Classes]
+      summary: Получить занятие по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные занятия
+    put:
+      tags: [Classes]
+      summary: Обновить занятие
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Занятие обновлено
+    delete:
+      tags: [Classes]
+      summary: Отменить занятие
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Занятие отменено
+
+  # ============================================
+  # BOOKINGS (Бронирования)
+  # ============================================
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: Получить список бронирований
+      parameters:
+        - name: client_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: class_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Список бронирований
+    post:
+      tags: [Bookings]
+      summary: Забронировать место на занятие
+      description: |
+        Бизнес-правила:
+        - Бронирование не более чем за 7 дней вперёд
+        - Проверка активности абонемента
+        - Проверка лимита мест (max_capacity)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCreate"
+      responses:
+        "201":
+          description: Бронирование создано
+        "400":
+          description: Ошибка (мест нет / абонемент неактивен / далее 7 дней)
+
+  /bookings/{id}:
+    get:
+      tags: [Bookings]
+      summary: Получить бронирование по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные бронирования
+    put:
+      tags: [Bookings]
+      summary: Обновить бронирование (отмена)
+      description: Отмена возможна не позднее чем за 2 часа до начала
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Бронирование обновлено
+    delete:
+      tags: [Bookings]
+      summary: Удалить бронирование
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Бронирование удалено
+
+  # ============================================
+  # WAITLIST (Лист ожидания)
+  # ============================================
+  /waitlist:
+    get:
+      tags: [Waitlist]
+      summary: Получить лист ожидания
+      parameters:
+        - name: class_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [waiting, booked, cancelled, expired] }
+      responses:
+        "200":
+          description: Список очереди
+    post:
+      tags: [Waitlist]
+      summary: Записаться в лист ожидания
+      description: Добровольная запись клиента при полной укомплектации занятия
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaitlistCreate"
+      responses:
+        "201":
+          description: Клиент добавлен в очередь
+
+  /waitlist/{id}:
+    get:
+      tags: [Waitlist]
+      summary: Получить запись из листа ожидания
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные записи
+    put:
+      tags: [Waitlist]
+      summary: Обновить статус записи
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Статус обновлён
+    delete:
+      tags: [Waitlist]
+      summary: Удалить из листа ожидания
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Запись удалена
+
+  # ============================================
+  # TRAINERS (Тренеры)
+  # ============================================
+  /trainers:
+    get:
+      tags: [Trainers]
+      summary: Получить список тренеров
+      parameters:
+        - name: specialization
+          in: query
+          schema:
+            {
+              type: string,
+              enum: [boxing, judo, yoga, pilates, cycle, personal],
+            }
+        - name: is_active
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Список тренеров
+    post:
+      tags: [Trainers]
+      summary: Добавить тренера
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainerCreate"
+      responses:
+        "201":
+          description: Тренер добавлен
+
+  /trainers/{id}:
+    get:
+      tags: [Trainers]
+      summary: Получить тренера по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные тренера
+    put:
+      tags: [Trainers]
+      summary: Обновить данные тренера
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Тренер обновлён
+    delete:
+      tags: [Trainers]
+      summary: Деактивировать тренера
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Тренер деактивирован
+
+  # ============================================
+  # PERSONAL TRAININGS (Персональные тренировки)
+  # ============================================
+  /personal-trainings:
+    get:
+      tags: [PersonalTrainings]
+      summary: Получить список персональных тренировок
+      parameters:
+        - name: client_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: trainer_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Список тренировок
+    post:
+      tags: [PersonalTrainings]
+      summary: Забронировать персональную тренировку
+      description: |
+        Бизнес-правила:
+        - Длительность: 60 минут (R-17)
+        - Бронирование не более чем за 7 дней вперёд (R-19)
+        - Проверка занятости тренера (уникальный индекс)
+        - Оплата через платёжный шлюз
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonalTrainingCreate"
+      responses:
+        "201":
+          description: Тренировка забронирована
+
+  /personal-trainings/{id}:
+    get:
+      tags: [PersonalTrainings]
+      summary: Получить тренировку по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные тренировки
+    put:
+      tags: [PersonalTrainings]
+      summary: Обновить статус тренировки
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Статус обновлён
+    delete:
+      tags: [PersonalTrainings]
+      summary: Отменить тренировку
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Тренировка отменена
+
+  # ============================================
+  # PAYMENTS (Платежи)
+  # ============================================
+  /payments:
+    get:
+      tags: [Payments]
+      summary: Получить список платежей
+      parameters:
+        - name: client_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, success, failed, refunded] }
+      responses:
+        "200":
+          description: Список платежей
+    post:
+      tags: [Payments]
+      summary: Инициировать платёж
+      description: Интеграция с платёжным шлюзом (ЮKassa / CloudPayments)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentCreate"
+      responses:
+        "201":
+          description: Платёж инициирован
+
+  /payments/{id}:
+    get:
+      tags: [Payments]
+      summary: Получить платёж по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Данные платежа
+    put:
+      tags: [Payments]
+      summary: Обновить статус платежа (webhook от шлюза)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Статус обновлён
+    delete:
+      tags: [Payments]
+      summary: Удалить платёж (только для администратора)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Платёж удалён
+
+  # ============================================
+  # TURNSTILES (Турникеты — интеграция)
+  # ============================================
+  /turnstiles/{turnstile_id}/access:
+    post:
+      tags: [Turnstiles]
+      summary: Проверка карты и управление турникетом
+      description: |
+        **Основной бизнес-процесс:**
+        1. Считывание RFID-карты
+        2. Проверка статуса карты (active/blocked)
+        3. Проверка активности абонемента
+        4. Debounce-защита (5 секунд)
+        5. Фиксация входа/выхода в visit_logs
+        6. Команда турникету (открыть/отказать)
+
+        **Обработка ошибок:**
+        - Карта заблокирована → сообщение на дисплей + Push/SMS
+        - Абонемент истёк → сообщение «Абонемент истёк»
+        - Абонемент заморожен → сообщение «Абонемент заморожен»
+      parameters:
+        - name: turnstile_id
+          in: path
+          required: true
+          schema: { type: string }
+          example: TS-ENTRANCE-01
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TurnstileAccessRequest"
+            example:
+              card_number: "RFID-1000000001"
+              timestamp: "2026-09-11T08:15:30Z"
+              event_type: "entry"
+      responses:
+        "200":
+          description: Проход разрешён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TurnstileAccessResponse"
+              example:
+                status: "granted"
+                turnstile_id: "TS-ENTRANCE-01"
+                action: "open"
+                display_message: "Добро пожаловать"
+                processed_at: "2026-09-11T08:15:30Z"
+                latency_ms: 127
+        "403":
+          description: Проход запрещён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TurnstileAccessResponse"
+              examples:
+                card_blocked:
+                  summary: Карта заблокирована
+                  value:
+                    status: "denied"
+                    reason: "card_blocked"
+                    turnstile_id: "TS-ENTRANCE-01"
+                    action: "deny"
+                    display_message: "Карта заблокирована. Обратитесь на ресепшн"
+                    notify_client: true
+                    notification_channels: ["push", "sms"]
+                membership_expired:
+                  summary: Абонемент истёк
+                  value:
+                    status: "denied"
+                    reason: "membership_expired"
+                    display_message: "Абонемент истёк"
+                membership_frozen:
+                  summary: Абонемент заморожен
+                  value:
+                    status: "denied"
+                    reason: "membership_frozen"
+                    display_message: "Абонемент заморожен"
+
+  /turnstiles/{turnstile_id}/events:
+    get:
+      tags: [Turnstiles]
+      summary: Получить события турникета (аудит)
+      parameters:
+        - name: turnstile_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: from_date
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Список событий
+
+# ============================================
+# КОМПОНЕНТЫ (Схемы данных)
+# ============================================
+components:
+  schemas:
+    # ---------- Clients ----------
+    Client:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        full_name: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
+        push_token: { type: string }
+        created_at: { type: string, format: date-time }
+    ClientCreate:
+      type: object
+      required: [full_name, phone]
+      properties:
+        full_name: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
+    ClientUpdate:
+      type: object
+      properties:
+        full_name: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
+        push_token: { type: string }
+
+    # ---------- Memberships ----------
+    Membership:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        type: { type: string, enum: [month, quarter, year] }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        price: { type: number }
+        status: { type: string, enum: [active, expired, frozen] }
+        freeze_status: { type: string, enum: [active, frozen] }
+        frozen_until: { type: string, format: date, nullable: true }
+    MembershipCreate:
+      type: object
+      required: [client_id, type, start_date, end_date, price]
+      properties:
+        client_id: { type: string, format: uuid }
+        type: { type: string, enum: [month, quarter, year] }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        price: { type: number }
+    MembershipUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [active, expired, frozen] }
+        freeze_status: { type: string, enum: [active, frozen] }
+        frozen_until: { type: string, format: date }
+
+    # ---------- Access Cards ----------
+    AccessCard:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        card_number: { type: string }
+        client_id: { type: string, format: uuid }
+        status: { type: string, enum: [active, blocked, lost] }
+        issued_at: { type: string, format: date-time }
+        blocked_at: { type: string, format: date-time, nullable: true }
+        reissue_count: { type: integer }
+    AccessCardCreate:
+      type: object
+      required: [card_number, client_id]
+      properties:
+        card_number: { type: string }
+        client_id: { type: string, format: uuid }
+    AccessCardUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [active, blocked, lost] }
+        blocked_at: { type: string, format: date-time }
+
+    # ---------- Visit Logs ----------
+    VisitLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        card_id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        entry_time: { type: string, format: date-time }
+        exit_time: { type: string, format: date-time, nullable: true }
+        turnstile_id: { type: string }
+        event_type: { type: string, enum: [entry, exit] }
+    VisitLogCreate:
+      type: object
+      required: [card_id, client_id, turnstile_id, event_type]
+      properties:
+        card_id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        turnstile_id: { type: string }
+        event_type: { type: string, enum: [entry, exit] }
+
+    # ---------- Classes ----------
+    Class:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        class_type: { type: string, enum: [group, martial_arts, personal] }
+        description: { type: string }
+        scheduled_at: { type: string, format: date-time }
+        duration_minutes: { type: integer }
+        max_capacity: { type: integer }
+        includes_equipment: { type: boolean }
+        trainer_id: { type: string, format: uuid, nullable: true }
+    ClassCreate:
+      type: object
+      required: [name, class_type, scheduled_at, max_capacity]
+      properties:
+        name: { type: string }
+        class_type: { type: string, enum: [group, martial_arts, personal] }
+        description: { type: string }
+        scheduled_at: { type: string, format: date-time }
+        duration_minutes: { type: integer, default: 60 }
+        max_capacity: { type: integer }
+        includes_equipment: { type: boolean, default: false }
+        trainer_id: { type: string, format: uuid }
+
+    # ---------- Bookings ----------
+    Booking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        status: { type: string, enum: [active, cancelled, completed] }
+        created_at: { type: string, format: date-time }
+        cancelled_at: { type: string, format: date-time, nullable: true }
+    BookingCreate:
+      type: object
+      required: [client_id, class_id]
+      properties:
+        client_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+
+    # ---------- Waitlist ----------
+    Waitlist:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        position: { type: integer }
+        status: { type: string, enum: [waiting, booked, cancelled, expired] }
+        added_at: { type: string, format: date-time }
+        notified_at: { type: string, format: date-time, nullable: true }
+    WaitlistCreate:
+      type: object
+      required: [class_id, client_id]
+      properties:
+        class_id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+
+    # ---------- Trainers ----------
+    Trainer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        full_name: { type: string }
+        specialization:
+          { type: string, enum: [boxing, judo, yoga, pilates, cycle, personal] }
+        rating: { type: number, minimum: 0, maximum: 5 }
+        hourly_rate: { type: number }
+        is_active: { type: boolean }
+    TrainerCreate:
+      type: object
+      required: [full_name, specialization, hourly_rate]
+      properties:
+        full_name: { type: string }
+        specialization:
+          { type: string, enum: [boxing, judo, yoga, pilates, cycle, personal] }
+        hourly_rate: { type: number }
+
+    # ---------- Personal Trainings ----------
+    PersonalTraining:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        trainer_id: { type: string, format: uuid }
+        scheduled_at: { type: string, format: date-time }
+        duration_minutes: { type: integer, default: 60 }
+        price: { type: number }
+        status:
+          { type: string, enum: [scheduled, completed, cancelled, no_show] }
+        created_at: { type: string, format: date-time }
+    PersonalTrainingCreate:
+      type: object
+      required: [client_id, trainer_id, scheduled_at]
+      properties:
+        client_id: { type: string, format: uuid }
+        trainer_id: { type: string, format: uuid }
+        scheduled_at: { type: string, format: date-time }
+
+    # ---------- Payments ----------
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        amount: { type: number }
+        method: { type: string, enum: [card, cash] }
+        status: { type: string, enum: [pending, success, failed, refunded] }
+        description: { type: string }
+        created_at: { type: string, format: date-time }
+    PaymentCreate:
+      type: object
+      required: [client_id, amount, method]
+      properties:
+        client_id: { type: string, format: uuid }
+        amount: { type: number }
+        method: { type: string, enum: [card, cash] }
+        description: { type: string }
+
+    # ---------- Turnstiles ----------
+    TurnstileAccessRequest:
+      type: object
+      required: [card_number, timestamp, event_type]
+      properties:
+        card_number: { type: string, example: "RFID-1000000001" }
+        timestamp: { type: string, format: date-time }
+        event_type: { type: string, enum: [entry, exit] }
+        client_id: { type: string, format: uuid }
+    TurnstileAccessResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [granted, denied] }
+        reason:
+          {
+            type: string,
+            enum:
+              [
+                card_blocked,
+                membership_expired,
+                membership_frozen,
+                unknown_card,
+              ],
+          }
+        turnstile_id: { type: string }
+        action: { type: string, enum: [open, deny] }
+        display_message: { type: string }
+        notify_client: { type: boolean }
+        notification_channels:
+          type: array
+          items: { type: string, enum: [push, sms] }
+        processed_at: { type: string, format: date-time }
+        latency_ms: { type: integer }
+
+  # ============================================
+  # СХЕМЫ БЕЗОПАСНОСТИ
+  # ============================================
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API-ключ для интеграции с турникетным контроллером
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT-токен для клиентских и админских запросов
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
