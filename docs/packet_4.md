@@ -742,7 +742,13 @@ POST /api/v1/payments
 ![](../img/sw_top-2.png)
 ![](../img/sw_top-3.png)
 ![](../img/sw_top-4.png)
+
+### Пример get
+
 ![Пример get](../img/sw_top-5.png)
+
+### Пример post
+
 ![Пример post](../img/sw_top-6.png)
 
 ---
